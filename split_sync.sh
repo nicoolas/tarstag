@@ -16,7 +16,7 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-. $(dirname $0)/common.sh
+. $(dirname $(readlink -f $0))/common.sh
 f_load_config_file "split.conf"
 
 blob_size=256M
