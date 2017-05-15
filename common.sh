@@ -18,6 +18,8 @@
 
 
 config_dir=~/.config/tarstag/
+cmd_treehash="$(dirname $(readlink -f $0))/sha256_treehash/treehash.py"
+
 f_fatal() {
 	echo $*
 	exit 1

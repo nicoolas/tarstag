@@ -20,7 +20,8 @@
 f_load_config_file "upload.conf"
 
 
-[ -n "$cmd_treehash" ] || f_fatal "Config file: missing entry 'cmd_treehash'"
+[ -n "$cmd_treehash" ] || f_fatal "bug: missing treehash computation command"
+[ -x "$cmd_treehash" ] || f_fatal "bug: treehash computation command not found '$cmd_treehash'"
 [ -n "$AWS_ACCOUNT_ID" ] || f_fatal "Config file: missing entry 'AWS_ACCOUNT_ID'"
 # FIXME: find a way to create file with syncthing uid
 #user="syncthing:syncthing"
