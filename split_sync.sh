@@ -20,7 +20,7 @@
 f_load_config_file "split.conf"
 
 blob_size=256M
-blob_encrypt=false
+blob_encrypt=""
 
 sha256_suffix=sha256sum
 
@@ -29,46 +29,53 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e] -p prefix -v vault_name <files>
+  $(basename $0) [-e recipient] -a archive_prefix -d archive_dir <files>
 
   -h : this help.
-  -a : archive name
-  -p : destination blob prefix
+  -a : Archive name prefix
+  -d : Destination directory name
+  -e : Encrypt for given recipient
+  -b : bzip2 compression
 
 EOF
     exit $1
 }
 
-while getopts a:p:he o
+while getopts a:d:he:b o
 do
     case "$o" in
-    a) archive_name=$OPTARG ;;
-    p) dest_prefix=$OPTARG ;;
-    e) blob_encrypt=true ;;
-    h) f_usage 0;;
-    *) f_usage 1;;
+    b) compress_bz=true ;;
+    d) archive_dir=$OPTARG ;;
+    a) archive_prefix=$OPTARG ;;
+    e) blob_encrypt=$OPTARG ;;
+    h) f_usage 0 ;;
+    *) f_usage 1 ;;
     esac
 done
 shift $(($OPTIND-1))
 
 # Check config
 [ -n "$split_dest_dir" ] || f_fatal "Config file: missing entry 'split_dest_dir'"
-if [ "$blob_encrypt" = true ]
+
+archive_dir=$split_dest_dir/$archive_dir
+blob_dest=$archive_dir/${archive_prefix}.tar
+[ "$compress_bz" = "true" ] && blob_dest=$blob_dest.bz
+
+[ -n "$archive_dir" ] || f_usage  1
+[ -n "$archive_prefix" ] || f_usage  1
+[ -n "$1" ] || f_usage  1
+
+# Fail if GPG recipient is not valid
+if [ -n "$blob_encrypt" ]
 then
-	[ -n "$gpg_encrypt_recipient" ] || f_fatal "Config file: missing entry 'gpg_encrypt_recipient'"
+	blob_dest=$blob_dest.gpg
+	gpg --list-secret-keys "$blob_encrypt" >/dev/null || f_fatal "Unknown gpg recipient '$blob_encrypt'"
 fi
 
-archive_dir=$split_dest_dir/$archive_name
-blob_dest=$archive_dir/${dest_prefix}.tar
-
-[ -n "$archive_name" ] || f_usage  1
-[ -n "$dest_prefix" ] || f_usage  1
-[ -n "$1" ] || f_usage  1
 [ -d "$split_dest_dir" ] || f_fatal "No directory: '$split_dest_dir'"
-[ "$blob_encrypt" = "true" ] && blob_dest=$blob_dest.gpg
 cat <<EOS
 
-	Archive name: $archive_name
+	Archive name: $archive_prefix
 	Archive files: $(basename $blob_dest)*
 	Destination: $archive_dir
 
@@ -83,12 +90,14 @@ fi
 
 echo "* TAR all files"
 f_split() { split --bytes=${blob_size} --suffix-length=2 - $1; }
-f_encrypt() { gpg --encrypt --recipient $gpg_encrypt_recipient ; }
-if [ "$blob_encrypt" = "true" ]
+f_encrypt() { gpg --encrypt --recipient $blob_encrypt ; }
+[ "$compress_bz" = "true" ] && tar_opt=j
+
+if [ -z "$blob_encrypt" ]
 then
-	time tar c "$@"  | f_split ${blob_dest}. || f_fatal "Tar+Split failed (no encryption)"
+	time tar c$tar_opt "$@"  | f_split ${blob_dest}. || f_fatal "Tar+Split failed (no encryption)"
 else
-	time tar c "$@"  | f_encrypt | f_split ${blob_dest}. || f_fatal "Tar+Split failed (with encryption)"
+	time tar c$tar_opt "$@"  | f_encrypt | f_split ${blob_dest}. || f_fatal "Tar+Split failed (with encryption)"
 fi
 
 echo "* Compute sha256 checksums"
