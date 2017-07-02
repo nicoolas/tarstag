@@ -19,6 +19,8 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"

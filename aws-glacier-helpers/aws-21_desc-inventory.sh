@@ -19,22 +19,7 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
-vault="$1"
-job_type="inventory-retrieval"
-cmd=initiate-job
-
-out=$(f_get_filepath "${vault}" "$file_job_inventory")
-
-cat <<EOS
-
-== $(basename $0) ==
-
-Vault: $vault
-Type: $job_type
-out: $out
-
-EOS
-
-aws glacier $cmd --vault-name $vault --account-id -  --job-parameters "{\"Type\": \"$job_type\"}" | tee $out
