@@ -24,6 +24,14 @@ f_load_config_file "scan.conf"
 cmd_upload=$(dirname $0)/upload.sh
 sleep_loop=30s
 
+cat <<EOS
+
+$(basename $0)
+  sync_dir: $sync_dir
+  email_contact: $email_contact
+
+EOS
+
 cd $(dirname $0)
 umask 002
 
@@ -37,12 +45,14 @@ f_process_files() {
 		file_log_sync=$dir_tarball/$file_tarball.log
 		if [ -r "$dir_tarball/$file_tarball" ]
 		then
-			echo "$(date +%Y%m%d_%H%M%S) : $vault | $file_tarball"
+			echo -n "$(date +%Y%m%d_%H%M%S) : $vault | $file_tarball"
 			if $cmd_upload $vault $dir_tarball/$file_tarball >$file_log_local 2>&1
 			then
 				mv $file_log_local $file_log_sync
 				gzip $file_log_sync
+				echo " --> DONE"
 			else
+				echo " --> ERROR"
 				{ cat <<-EOS
 				$(date) - Syncthing/Glacier upload failed - EXITING
 				Vault: $vault
