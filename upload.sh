@@ -85,15 +85,20 @@ else
 fi
 
 f_log "* Upload archive '$blob'"
-$dry_run aws glacier upload-archive \
+timeout_s=600
+$dry_run timeout $timeout_s \
+	aws glacier upload-archive \
     --vault-name $vault \
     --account-id $AWS_ACCOUNT_ID \
     --archive-description "Backup: $blob" \
     --body $blob \
     --checksum $(cat $treehash) >$output_log 2>&1
+aws_ret=$?
 echo '<<<'
 [ -r "$output_log" ] && cat "$output_log"
 echo '>>>'
+
+[ $aws_ret -eq 0 ] || f_fatal "'aws glacier upload-archive' failed. Return code: $aws_ret"
 
 f_log "Delete input files"
 rm -fv "$blob" "$sha256sum" "$treehash" "$output_vaults"
