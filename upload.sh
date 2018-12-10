@@ -23,8 +23,7 @@ f_load_config_file "upload.conf"
 [ -n "$cmd_treehash" ] || f_fatal "bug: missing treehash computation command"
 [ -x "$cmd_treehash" ] || f_fatal "bug: treehash computation command not found '$cmd_treehash'"
 [ -n "$AWS_ACCOUNT_ID" ] || f_fatal "Config file: missing entry 'AWS_ACCOUNT_ID'"
-# FIXME: find a way to create file with syncthing uid
-#user="syncthing:syncthing"
+
 #dry_run=echo 
 
 vault="$1"
@@ -34,7 +33,7 @@ blob="$(basename $input_file)"
 treehash="$blob.sha256treehash"
 sha256sum="$blob.sha256sum"
 output_log="$blob.glacier"
-output_vaults="$blob.vaults"
+output_vaults=".vaults-list"
 
 umask 002
 echo
@@ -60,28 +59,34 @@ cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
 [ -r "$blob" ] || f_fatal "Cannot read file '$blob'"
 [ -r "$sha256sum" ] || f_fatal "Cannot read file '$sha256sum'"
 
+[ -s "$blob" ] || f_fatal "Empty file '$blob'"
+[ -s "$sha256sum" ] || f_fatal "Empty file '$sha256sum'"
+
+f_log "* Process archive"
+ls -l $input_file
+
 f_log "* Verify SHA256 checksum"
+cat $sha256sum
 sha256sum -c "$sha256sum" || f_fatal "SHA256 Checksum failed"
 
 f_log "* Generate SHA256 Tree Hash"
 $cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
 [ -r "$treehash" ] || f_fatal "Cannot read file '$treehash'"
 
-f_check_vault() {
+f_list_vaults() {
 	f_log "* List available vaults ($output_vaults)"
 	aws glacier list-vaults --account-id $AWS_ACCOUNT_ID > $output_vaults || f_fatal "Failed to list current vaults"
 	[ -r "$output_vaults" ] || f_fatal "Cannot read file '$output_vaults'"
-	
-	jq '."VaultList"|.[]|."VaultName"' $output_vaults | grep -q "\"$vault\""
 }
 
-if f_check_vault
+f_list_vaults
+if jq '."VaultList"|.[]|."VaultName"' $output_vaults | grep -q "\"$vault\""
 then
 	f_log "-> Vault '$vault' already exists"
 else
 	f_log "-> Vault '$vault' does not exist: creating it"
 	aws glacier create-vault --account-id $AWS_ACCOUNT_ID --vault-name "$vault" || f_fatal "Failed to create vault '$vault'"
-	f_check_vault || f_fatal "Vault '$vault' was not created properly"
+	f_list_vaults # Refresh vault list
 fi
 
 f_log "* Upload archive '$blob'"
@@ -101,7 +106,7 @@ echo '>>>'
 [ $aws_ret -eq 0 ] || f_fatal "'aws glacier upload-archive' failed. Return code: $aws_ret"
 
 f_log "Delete input files"
-rm -fv "$blob" "$sha256sum" "$treehash" "$output_vaults"
+rm -fv "$blob" "$sha256sum" "$treehash"
 
 f_log "* Done"
 

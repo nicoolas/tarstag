@@ -64,6 +64,8 @@ f_process_files() {
 				EOS
 				cat $file_log_local
 				} | mail -s "Syncthing/Glacier Upload failure." $email_contact
+
+				cat $file_log_local >&2
 				mv $file_log_local $file_log_sync # Move if you can, keep local otherwise
 				return 1
 			fi
