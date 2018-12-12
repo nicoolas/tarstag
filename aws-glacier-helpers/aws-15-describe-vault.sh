@@ -24,37 +24,16 @@ f_check_util jq
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-cmd=get-job-output
-in=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
-
-f_check_file_read $in
-job_id=$(jq '.JobId' $in | tr -d '"')
-job_action=$(jq '.Action' $in | tr -d '"')
-#vault=$(jq '.VaultARN' $in | tr -d '"' | sed 's:^.*vaults/::')
-
-case "$job_action" in
-	"InventoryRetrieval")
-		out=$(f_get_filepath "${vault}" "$file_job_output" "inventory-retrieval" "json")
-		;;
-	"xxx") 
-		f_fatal "no supported yet: '$job_action'"
-		;;
-	*) f_fatal "bug"
-esac
+out=$(f_get_filepath "${vault}" "$file_info" "describe-vault" "json")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
-Action: $job_action
-Job: $job_id
-
-In: $in
 Out: $out
 
 EOS
 
-
 set -x
-aws glacier $cmd --vault-name $vault --account-id - --job-id="$job_id" $out
+aws glacier describe-vault --vault-name $vault --account-id - | tee $out

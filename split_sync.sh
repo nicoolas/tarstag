@@ -21,7 +21,6 @@ f_load_config_file "split.conf"
 
 blob_size=256M
 blob_encrypt=""
-
 sha256_suffix=sha256sum
 
 f_usage() {
@@ -29,25 +28,27 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e recipient] -a archive_prefix -d archive_dir <files>
+  $(basename $0) [-e recipient] [-b] -a archive_prefix -d archive_dir <files>
 
   -h : this help.
   -a : Archive name prefix
-  -d : Destination directory name
+  -d : Destination directory name (ultimately AWS Glacier vault name)
   -e : Encrypt for given recipient
   -b : bzip2 compression
+  -s : blob size (default: $blob_size)
 
 EOF
     exit $1
 }
 
-while getopts a:d:he:b o
+while getopts s:a:d:he:b o
 do
     case "$o" in
     b) compress_bz=true ;;
     d) archive_dir=$OPTARG ;;
     a) archive_prefix=$OPTARG ;;
     e) blob_encrypt=$OPTARG ;;
+    s) blob_size=$OPTARG ;;
     h) f_usage 0 ;;
     *) f_usage 1 ;;
     esac

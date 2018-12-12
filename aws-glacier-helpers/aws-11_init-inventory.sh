@@ -21,4 +21,4 @@
 
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
-./aws-10_initiate-job.sh "$1" "inventory-retrieval"
+$bin_dir/aws-10_initiate-job.sh "$1" "inventory-retrieval"

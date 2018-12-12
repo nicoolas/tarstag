@@ -16,9 +16,15 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+# *DOC*
+# Retrieving an archive or a vault inventory are asynchronous operations
+# that require you to initiate a job.
+# Retrieval is a two-step process:
+#  - Initiate a retrieval job by using the Initiate Job (POST jobs) operation. 
+#  - After the job completes, download the bytes using the Get Job Output (GET output) operation.
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
-./aws-10_initiate-job.sh "$1" "inventory-retrieval"
+$bin_dir/aws-10_initiate-job.sh "$1" "archive-retrieval"

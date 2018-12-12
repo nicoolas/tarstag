@@ -25,8 +25,8 @@ f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
 cmd=delete-archive
-in=$(f_get_filepath "${vault}" "$file_job_output")
-out=$(f_get_filepath "${vault}" "_delete-archive.log")
+in=$(f_get_filepath "${vault}" "$file_job_output" "InventoryRetrieval" "json")
+out=$(f_get_filepath "${vault}" "$file_actions" "delete-all-archives" "log")
 
 f_check_file_read "$in"
 

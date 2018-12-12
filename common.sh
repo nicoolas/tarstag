@@ -20,14 +20,10 @@
 config_dir=~/.config/tarstag/
 cmd_treehash="$(dirname $(readlink -f $0))/sha256_treehash/treehash.py"
 
-f_fatal() {
-	echo $*
-	exit 1
-}
-
 f_load_config_file() {
 	[ -s "$config_dir/$1" ] || return 1
 	. "$config_dir/$1"
 }
 
+. $(dirname $(readlink -f $0))/aws-glacier-helpers/aws-00_common.sh
 

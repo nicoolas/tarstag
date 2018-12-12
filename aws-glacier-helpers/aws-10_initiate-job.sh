@@ -16,6 +16,15 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+# *DOC*
+# Initiate Job (POST jobs)
+# This operation initiates the following types of Amazon S3 Glacier (Glacier) jobs:
+#  select: Perform a select query on an archive
+#  archive-retrieval: Retrieve an archive
+#  inventory-retrieval: Inventory a vault
+
+
+ 
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
@@ -26,7 +35,7 @@ vault="$1"
 job_type="$2"
 cmd=initiate-job
 
-out=$(f_get_filepath "${vault}" "$file_job_init" "$job_type" ".json")
+out=$(f_get_filepath "${vault}" "$file_job_init" "$job_type" "json")
 
 cat <<EOS
 
