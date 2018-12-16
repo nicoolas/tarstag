@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 
 # Tarstag: Transfer data -> tar -> synthing -> amazon glacier
 #
@@ -28,11 +28,13 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e recipient] [-b] -a archive_prefix -d archive_dir <files>
+  $(basename $0) [-e recipient] [-b] -a archive_prefix -d archive_dir [-t [-d <temp_dir]] <files>
 
   -h : this help.
   -a : Archive name prefix
-  -d : Destination directory name (ultimately AWS Glacier vault name)
+  -v : Vault Name (and destination directory name)
+  -t : Use temporary directory (from -d option or config file)
+  -d : Temporary directory path
   -e : Encrypt for given recipient
   -b : bzip2 compression
   -s : blob size (default: $blob_size)
@@ -41,12 +43,17 @@ EOF
     exit $1
 }
 
-while getopts s:a:d:he:b o
+compress_bz=false
+use_temp_dir=false
+
+while getopts s:a:td:v:he:b o
 do
     case "$o" in
     b) compress_bz=true ;;
-    d) archive_dir=$OPTARG ;;
+    v) vault_name=$OPTARG ;;
     a) archive_prefix=$OPTARG ;;
+    d) temp_path=$OPTARG ;;
+    t) use_temp_dir=true ;;
     e) blob_encrypt=$OPTARG ;;
     s) blob_size=$OPTARG ;;
     h) f_usage 0 ;;
@@ -57,15 +64,34 @@ shift $(($OPTIND-1))
 
 # Check config
 [ -n "$split_dest_dir" ] || f_fatal "Config file: missing entry 'split_dest_dir'"
+[ -n "$temp_path" -a "$use_temp_dir" != "true" ] && f_fatal "Temp dir configfured, but not activated (use -t option)"
+archive_dir=$split_dest_dir/$vault_name
 
-archive_dir=$split_dest_dir/$archive_dir
-blob_dest=$archive_dir/${archive_prefix}.tar
-[ "$compress_bz" = "true" ] && blob_dest=$blob_dest.bz
+if [ "$use_temp_dir" = "true" ]
+then
+	if [ -z "$temp_path" ]
+	then
+		echo "Using temporary path from option: '$temp_path'"
+	else
+		[ -n "$split_temp_dir" ] || f_fatal "Temporary directory is missing (use config file 'split_temp_dir', or -d option)"
+		temp_path="$split_temp_dir"
+		echo "Using temporary path from config file: '$temp_path'"
+	fi
+fi
+		
 
+if [ -n "$temp_path" ]; then
+	[ -d "$temp_path" ] || f_fatal  "Temp. dir is not a directory: '$temp_path'"
+	temp_dir=$temp_path/$vault_name
+else
+	temp_dir="$archive_dir"
+fi
 [ -n "$archive_dir" ] || f_usage  1
 [ -n "$archive_prefix" ] || f_usage  1
 [ -n "$1" ] || f_usage  1
 
+blob_dest=$temp_dir/${archive_prefix}.tar
+[ "$compress_bz" = "true" ] && blob_dest=$blob_dest.bz
 # Fail if GPG recipient is not valid
 if [ -n "$blob_encrypt" ]
 then
@@ -79,15 +105,22 @@ cat <<EOS
 	Archive name: $archive_prefix
 	Archive files: $(basename $blob_dest)*
 	Destination: $archive_dir
+	Temp. dir: $temp_dir
 
 EOS
 
-if ! [ -d $archive_dir ]
-then
-	echo "* Make destination dir: '$archive_dir'"
-	mkdir -v $archive_dir || f_fatal "Failed to mkdir '$archive_dir'"
-	chmod g+w "$archive_dir"
-fi
+for d in "$archive_dir" "$temp_dir"
+do
+	if [ "$d" != "" ]
+	then
+		if [ ! -d "$d" ]
+		then
+			echo "* Make dir: '$d'"
+			mkdir -v -p $d || f_fatal "Failed to mkdir '$d'"
+			chmod g+w "$d"
+		fi
+	fi
+done
 
 echo "* TAR all files"
 f_split() { split --bytes=${blob_size} --suffix-length=2 - $1; }
@@ -111,4 +144,11 @@ do
 	( cd $f_dir ; sha256sum --binary "$f_file" > "$f_file.$sha256_suffix" )
 	chmod g+w "$f" "$f.$sha256_suffix"
 done
+
+if [ "$archive_dir" != "$temp_dir" ]
+then
+	echo "* Move files to final destination"
+	mv ${blob_dest}*.${sha256_suffix}* "$archive_dir/"
+	mv ${blob_dest}* "$archive_dir/"
+fi
 
