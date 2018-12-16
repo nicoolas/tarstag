@@ -111,14 +111,11 @@ EOS
 
 for d in "$archive_dir" "$temp_dir"
 do
-	if [ "$d" != "" ]
+	if [ ! -d "$d" ]
 	then
-		if [ ! -d "$d" ]
-		then
-			echo "* Make dir: '$d'"
-			mkdir -v -p $d || f_fatal "Failed to mkdir '$d'"
-			chmod g+w "$d"
-		fi
+		echo "* Make dir: '$d'"
+		mkdir -p $d || f_fatal "Failed to mkdir '$d'"
+		chmod g+w "$d"
 	fi
 done
 
@@ -134,6 +131,9 @@ else
 	time tar c$tar_opt "$@"  | f_encrypt | f_split ${blob_dest}. || f_fatal "Tar+Split failed (with encryption)"
 fi
 
+echo "* Populate file '$list_file_in'"
+ls -1 ${blob_dest}* | sed 's_^.*/__' > $archive_dir/$list_file_in
+
 echo "* Compute sha256 checksums"
 for f in ${blob_dest}*
 do
@@ -147,8 +147,11 @@ done
 
 if [ "$archive_dir" != "$temp_dir" ]
 then
-	echo "* Move files to final destination"
+	echo "* Move checksum files to final destination"
 	mv ${blob_dest}*.${sha256_suffix}* "$archive_dir/"
+	echo "* Touch archive files"
+	touch ${blob_dest}*
+	echo "* Move archive files to final destination"
 	mv ${blob_dest}* "$archive_dir/"
 fi
 

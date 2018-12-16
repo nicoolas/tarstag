@@ -19,6 +19,8 @@
 
 config_dir=~/.config/tarstag/
 cmd_treehash="$(dirname $(readlink -f $0))/sha256_treehash/treehash.py"
+list_file_in=.full-list-in
+list_file_out=.full-list-out
 
 f_load_config_file() {
 	[ -s "$config_dir/$1" ] || return 1
