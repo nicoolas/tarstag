@@ -26,7 +26,8 @@ sleep_loop=30s
 
 cat <<EOS
 
-$(basename $0)
+$(basename $0) - Version: $VERSION
+
   sync_dir: $sync_dir
   email_contact: $email_contact
 
@@ -34,6 +35,41 @@ EOS
 
 cd $(dirname $0)
 umask 002
+
+f_process_file_list() {
+	local dir="$1"
+	if [ -r "$dir/$list_file_in" ]
+	then
+		if [ ! -r "$dir/$list_file_out" ]
+		then # IN but no OUT
+			echo "Copy '$dir/$list_file_out'"
+			cp -v "$dir/$list_file_in" "$dir/$list_file_out" || echo "** Cannot copy $dir/$list_file_out **"
+		fi
+		for f in "$dir"/*$file_ext_glacier
+		do
+			f_base=$(basename $f $file_ext_glacier)
+			sed -i "/^${f_base}$/s/^/#/" "$dir/$list_file_out"
+		done
+		if ! grep -qv '^#' "$dir/$list_file_out"
+		then
+			# All files are processed -> email
+            {
+				cat <<-EOS
+				$(date) - Syncthing/Glacier Upload Vault "$vault" Success
+				Vault: $vault
+				Nb blobs: $(wc -l "$dir/$list_file_out")
+				EOS
+            } | mail -s "Syncthing/Glacier Upload Success." $email_contact
+		fi
+	fi
+}
+
+f_date_tag() {
+	$(date +%Y%m%d_%H%M%S)
+}
+f_log_line() {
+	echo -n "$(f_date_tag) : $1 | $2 --> $3"
+}
 
 f_process_files() {
 	while read file_csum
@@ -45,24 +81,24 @@ f_process_files() {
 		file_log_sync=$dir_tarball/$file_tarball.log
 		if [ -r "$dir_tarball/$file_tarball" ]
 		then
-			echo -n "$(date +%Y%m%d_%H%M%S) : $vault | $file_tarball"
 			if $cmd_upload $vault $dir_tarball/$file_tarball >$file_log_local 2>&1
 			then
-				mv $file_log_local $file_log_sync
-				gzip $file_log_sync
-				echo " --> DONE"
+				gzip -c $file_log_local > $file_log_sync.gz && rm $file_log_local
+				f_log_line "$vault" "$file_tarball" "DONE"
+				f_process_file_list "$dir_tarball"
 			else
-				echo " --> ERROR"
-				{ cat <<-EOS
-				$(date) - Syncthing/Glacier upload failed - EXITING
-				Vault: $vault
-				Blob: $dir_tarball/$file_tarball
-				CheckSum: $file_csum
+				f_log_line "$vault" "$file_tarball" "ERROR"
+				{
+					cat <<-EOS
+					$(date) - Syncthing/Glacier upload failed - EXITING
+					Vault: $vault
+					Blob: $dir_tarball/$file_tarball
+					CheckSum: $file_csum
 
-				*** Logs ***
+					*** Logs ***
 
-				EOS
-				cat $file_log_local
+					EOS
+					cat $file_log_local
 				} | mail -s "Syncthing/Glacier Upload failure." $email_contact
 				mv $file_log_local $file_log_sync # Move if you can, keep local otherwise
 				return 1
