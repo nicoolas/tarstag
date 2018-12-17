@@ -64,16 +64,17 @@ shift $(($OPTIND-1))
 
 # Check config
 [ -n "$split_dest_dir" ] || f_fatal "Config file: missing entry 'split_dest_dir'"
-[ -n "$temp_path" -a "$use_temp_dir" != "true" ] && f_fatal "Temp dir configfured, but not activated (use -t option)"
+[ -n "$temp_path" -a "$use_temp_dir" != "true" ] && \
+	f_fatal "Temp dir configfured, but not activated (use -t option)"
 archive_dir=$split_dest_dir/$vault_name
 
 if [ "$use_temp_dir" = "true" ]
 then
-	if [ -z "$temp_path" ]
+	if [ -n "$temp_path" ]
 	then
 		echo "Using temporary path from option: '$temp_path'"
 	else
-		[ -n "$split_temp_dir" ] || f_fatal "Temporary directory is missing (use config file 'split_temp_dir', or -d option)"
+		[ -n "$split_temp_dir" ] || f_fatal "Temporary directory is missing"
 		temp_path="$split_temp_dir"
 		echo "Using temporary path from config file: '$temp_path'"
 	fi
@@ -96,7 +97,8 @@ blob_dest=$temp_dir/${archive_prefix}.tar
 if [ -n "$blob_encrypt" ]
 then
 	blob_dest=$blob_dest.gpg
-	gpg --list-secret-keys "$blob_encrypt" >/dev/null || f_fatal "Unknown gpg recipient '$blob_encrypt'"
+	gpg --list-secret-keys "$blob_encrypt" >/dev/null || \
+		f_fatal "Unknown gpg recipient '$blob_encrypt'"
 fi
 
 [ -d "$split_dest_dir" ] || f_fatal "No directory: '$split_dest_dir'"
@@ -126,9 +128,11 @@ f_encrypt() { gpg --encrypt --recipient $blob_encrypt ; }
 
 if [ -z "$blob_encrypt" ]
 then
-	time tar c$tar_opt "$@"  | f_split ${blob_dest}. || f_fatal "Tar+Split failed (no encryption)"
+	time tar c$tar_opt "$@"  | f_split ${blob_dest}. || \
+		f_fatal "Tar+Split failed (no encryption)"
 else
-	time tar c$tar_opt "$@"  | f_encrypt | f_split ${blob_dest}. || f_fatal "Tar+Split failed (with encryption)"
+	time tar c$tar_opt "$@"  | f_encrypt | f_split ${blob_dest}. || \
+		f_fatal "Tar+Split failed (with encryption)"
 fi
 
 echo "* Populate file '$list_file_in'"
