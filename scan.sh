@@ -64,11 +64,8 @@ f_process_file_list() {
 	fi
 }
 
-f_date_tag() {
-	$(date +%Y%m%d_%H%M%S)
-}
 f_log_line() {
-	echo -n "$(f_date_tag) : $1 | $2 --> $3"
+	echo -n "$(date +%Y%m%d_%H%M%S) : $1 | $2 --> $3"
 }
 
 f_process_files() {
