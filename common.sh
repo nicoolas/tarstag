@@ -16,11 +16,14 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+VERSION="2.0"
 
 config_dir=~/.config/tarstag/
 cmd_treehash="$(dirname $(readlink -f $0))/sha256_treehash/treehash.py"
 list_file_in=.full-list-in
 list_file_out=.full-list-out
+
+file_ext_glacier=".glacier"
 
 f_load_config_file() {
 	[ -s "$config_dir/$1" ] || return 1
