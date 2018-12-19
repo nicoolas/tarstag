@@ -16,7 +16,7 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-VERSION="2.0"
+VERSION="2.2"
 
 config_dir=~/.config/tarstag/
 cmd_treehash="$(dirname $(readlink -f $0))/sha256_treehash/treehash.py"
