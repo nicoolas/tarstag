@@ -22,7 +22,7 @@ f_load_config_file "scan.conf"
 [ -n "$sync_dir" ] || f_fatal "Config file: missing entry 'sync_dir'"
 [ -n "$email_contact" ] || f_fatal "Config file: missing entry 'email_contact'"
 cmd_upload=$(dirname $0)/upload.sh
-sleep_loop=30s
+sleep_loop=20s
 
 cat <<EOS
 
@@ -65,10 +65,11 @@ f_process_file_list() {
 }
 
 f_log_line() {
-	echo -n "$(date +%Y%m%d_%H%M%S) : $1 | $2 --> $3"
+	echo "$(date +%Y%m%d_%H%M%S) : $1 | $2 --> $3"
 }
 
 f_process_files() {
+	local _nb=0
 	while read file_csum
 	do
 		file_tarball=$(basename $file_csum .sha256sum)
@@ -83,6 +84,7 @@ f_process_files() {
 				gzip -c $file_log_local > $file_log_sync.gz && rm $file_log_local
 				f_log_line "$vault" "$file_tarball" "DONE"
 				f_process_file_list "$dir_tarball"
+				_nb=1
 			else
 				f_log_line "$vault" "$file_tarball" "ERROR"
 				{
@@ -98,20 +100,19 @@ f_process_files() {
 					cat $file_log_local
 				} | mail -s "Syncthing/Glacier Upload failure." $email_contact
 				mv $file_log_local $file_log_sync # Move if you can, keep local otherwise
-				return 1
+				_nb=2
+				break
 			fi
 		fi
 	done
+	return $_nb
 }
 
 while true
 do
-	#echo "Loop: $(date +%Y%m%d_%H%M%S)"
 	if find $sync_dir -name "*.sha256sum" | f_process_files
 	then
 		sleep $sleep_loop
-	else
-		exit 1
 	fi
 done
 
