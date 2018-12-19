@@ -81,7 +81,7 @@ f_process_files() {
 		then
 			if $cmd_upload $vault $dir_tarball/$file_tarball >$file_log_local 2>&1
 			then
-				gzip -c $file_log_local > $file_log_sync.gz && rm $file_log_local
+				rm $file_log_local
 				f_log_line "$vault" "$file_tarball" "DONE"
 				f_process_file_list "$dir_tarball"
 				_nb=1
@@ -99,7 +99,7 @@ f_process_files() {
 					EOS
 					cat $file_log_local
 				} | mail -s "Syncthing/Glacier Upload failure." $email_contact
-				mv $file_log_local $file_log_sync # Move if you can, keep local otherwise
+				mv $file_log_local $file_log_sync
 				_nb=2
 				break
 			fi
