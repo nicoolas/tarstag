@@ -32,7 +32,7 @@ input_file_dir=$(dirname "$input_file")
 blob="$(basename $input_file)"
 treehash="$blob.sha256treehash"
 sha256sum="$blob.sha256sum"
-output_log="$blob.glacier"
+output_log="$blob$file_ext_glacier"
 output_vaults="$blob.vaults"
 
 umask 002
@@ -93,7 +93,7 @@ $dry_run timeout $timeout_s \
     --body $blob \
     --checksum $(cat $treehash) >$output_log 2>&1
 aws_ret=$?
-echo '<<<'
+echo '<<< aws glacier upload-archive logs'
 [ -r "$output_log" ] && cat "$output_log"
 echo '>>>'
 
