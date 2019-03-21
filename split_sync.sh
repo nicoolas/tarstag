@@ -28,7 +28,7 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e recipient] [-b] -a archive_prefix -d archive_dir [-t [-d <temp_dir]] <files>
+  $(basename $0) [-e recipient] [-b] -a archive_prefix -v vault_name [-t [-d <temp_dir]] <files>
 
   -h : this help.
   -a : Archive name prefix

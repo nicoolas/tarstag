@@ -16,35 +16,43 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# *DOC*
-# Initiate Job (POST jobs)
-# This operation initiates the following types of Amazon S3 Glacier (Glacier) jobs:
-#  select: Perform a select query on an archive
-#  archive-retrieval: Retrieve an archive
-#  inventory-retrieval: Inventory a vault
-
-
- 
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
-f_check_not_empty "$2" "Missing arg. (Job Type)"
 
 vault="$1"
-job_type="$2"
-cmd=initiate-job
+in=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
 
-out=$(f_get_filepath "${vault}" "$file_job_init" "$job_type" "json")
+f_check_file_read $in
+job_id=$(jq '.JobId' $in | tr -d '"')
+#vault=$(jq '.VaultARN' $in | tr -d '"' | sed 's:^.*vaults/::')
+
+jq '.Action' $in | tr -d '"' | grep -q "ArchiveRetrieval" || f_fatal "Wrong Action"
+archive_id=$(jq '.ArchiveId' $in)
+f_check_not_empty "$archive_id" "Error with ArchiveId"
+
+out=$(f_get_filepath "${vault}" "$file_job_output" "archive" "data")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
-Type: $job_type
-out: $out
+Job: $job_id
+
+In: $in
+Out: $out
 
 EOS
 
-aws glacier $cmd --vault-name $vault --account-id -  --job-parameters "{\"Type\": \"$job_type\"}" | tee $out
+jq '.Completed' $in | grep -q "true" || f_fatal "Error: Process not completed"
+
+set -x
+aws glacier get-job-output --account-id - \
+	--vault-name $vault \
+	--job-id "$job_id" \
+	$out
+

@@ -20,9 +20,9 @@
 f_load_config_file "scan.conf"
 
 [ -n "$sync_dir" ] || f_fatal "Config file: missing entry 'sync_dir'"
-[ -n "$email_contact" ] || f_fatal "Config file: missing entry 'email_contact'"
 cmd_upload=$(dirname $0)/upload.sh
 sleep_loop=20s
+email_subject_prefix="Syncthing/Glacier Upload"
 
 cat <<EOS
 
@@ -52,14 +52,13 @@ f_process_file_list() {
 		done
 		if ! grep -qv '^#' "$dir/$list_file_out"
 		then
-			# All files are processed -> email
             {
 				cat <<-EOS
 				$(date) - Syncthing/Glacier Upload Vault "$vault" Success
 				Vault: $vault
 				Nb blobs: $(wc -l "$dir/$list_file_out")
 				EOS
-            } | mail -s "Syncthing/Glacier Upload Success." $email_contact
+            } | f_send_email "$email_subject_prefix Success."
 		fi
 	fi
 }
@@ -98,7 +97,7 @@ f_process_files() {
 
 					EOS
 					cat $file_log_local
-				} | mail -s "Syncthing/Glacier Upload failure." $email_contact
+	            } | f_send_email "$email_subject_prefix Failure."
 				mv $file_log_local $file_log_sync
 				_nb=2
 				break

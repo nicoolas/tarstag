@@ -29,25 +29,17 @@ in=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
 
 f_check_file_read $in
 job_id=$(jq '.JobId' $in | tr -d '"')
-job_action=$(jq '.Action' $in | tr -d '"')
 #vault=$(jq '.VaultARN' $in | tr -d '"' | sed 's:^.*vaults/::')
 
-case "$job_action" in
-	"InventoryRetrieval")
-		out=$(f_get_filepath "${vault}" "$file_job_output" "inventory-retrieval" "json")
-		;;
-	"xxx") 
-		f_fatal "no supported yet: '$job_action'"
-		;;
-	*) f_fatal "bug"
-esac
+jq '.Action' $in | grep -q "InventoryRetrieval" || f_fatal "Wrong Action"
+
+out=$(f_get_filepath "${vault}" "$file_job_output" "inventory" "json")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
-Action: $job_action
 Job: $job_id
 
 In: $in
@@ -55,6 +47,8 @@ Out: $out
 
 EOS
 
+jq '.Completed' $in | grep -q "true" || f_fatal "Error: Process not completed"
 
 set -x
 aws glacier $cmd --vault-name $vault --account-id - --job-id="$job_id" $out
+

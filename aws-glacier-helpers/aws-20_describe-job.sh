@@ -24,7 +24,7 @@ f_check_util jq
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-in=$(f_get_filepath "${vault}" "$file_job_init" "inventory-retrieval" "json")
+in=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
 out=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
 
 f_check_file_read "$in"

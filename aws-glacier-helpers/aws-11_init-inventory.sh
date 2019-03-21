@@ -21,4 +21,22 @@
 
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
-$bin_dir/aws-10_initiate-job.sh "$1" "inventory-retrieval"
+vault="$1"
+job_type="inventory-retrieval"
+
+out=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
+
+cat <<EOS
+
+== $(basename $0) ==
+
+Vault: $vault
+Type: $job_type
+out: $out
+
+EOS
+
+aws glacier initiate-job --account-id - \
+	--vault-name $vault \
+	--job-parameters "{\"Type\": \"$job_type\"}" \
+	| tee $out

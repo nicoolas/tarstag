@@ -29,7 +29,7 @@ f_get_filepath() {
 }
 
 bin_dir=$(dirname $(readlink -f $0))/
-file_dir=$(pwd)/output
+file_dir=$(pwd)/aws-glacier-output
 file_info="00-info"
 file_job_init="10-job-init"
 file_job_desc="20-job-desc"

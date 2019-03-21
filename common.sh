@@ -30,5 +30,12 @@ f_load_config_file() {
 	. "$config_dir/$1"
 }
 
+f_send_email() {
+	[ -n "$email_contact" ] || f_fatal "Config file: missing entry 'email_contact'"
+	[ -n "$email_sender" ] && _sender="-r $email_sender"
+	echo "Send email: [$1] '$_sender' -> '$email_contact'"
+	mail -s "$1" $_sender $email_contact
+}
+
 . $(dirname $(readlink -f $0))/aws-glacier-helpers/aws-00_common.sh
 

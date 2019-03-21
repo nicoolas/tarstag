@@ -25,7 +25,7 @@ f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
 cmd=delete-archive
-in=$(f_get_filepath "${vault}" "$file_job_output" "InventoryRetrieval" "json")
+in=$(f_get_filepath "${vault}" "$file_job_output" "inventory" "json")
 out=$(f_get_filepath "${vault}" "$file_actions" "delete-old-archives" "log")
 
 f_check_file_read "$in"
@@ -39,13 +39,13 @@ Out: $out
 EOS
 
 # List all ArchiveID created more than 90 days ago
-jq '.ArchiveList | .[] | [if .CreationDate | fromdate < now-7776000 then .ArchiveId else empty end] | .[]' $in | tr -d '"' | {
-while read archive_id
-do
-	echo "Delete (old) archive: $archive_id"
-	set -x
-	aws glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
-	set +x
-done
-} | tee $out
+jq -c '.ArchiveList | .[] | [if .CreationDate | fromdate < now-7776000 then [.ArchiveId,.CreationDate] else empty end] | .[]' $in | \
+	tr -d '[]"' | tr ',' ' ' | \
+	{
+		while read archive_id creation_date
+		do
+			echo "Delete old archive: $creation_date $(echo $archive_id | cut -c 1-16)..."
+			aws glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
+		done
+	} | tee $out
 
