@@ -28,11 +28,14 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e recipient] [-b] -a archive_prefix -v vault_name [-t [-d <temp_dir]] <files>
+  $(basename $0) [-e recipient] [-b] -a archive_prefix -v vault_name [-m <size>] [-l] [-t [-d <temp_dir]] <files>
 
   -h : this help.
   -a : Archive name prefix
   -v : Vault Name (and destination directory name)
+  -m : Max file size (larger fiels will be ignored)
+       Add suffix like for find command (eg. 100M)
+  -l : list only -> stops after find excluded files
   -t : Use temporary directory (from -d option or config file)
   -d : Temporary directory path
   -e : Encrypt for given recipient
@@ -46,12 +49,14 @@ EOF
 compress_bz=false
 use_temp_dir=false
 
-while getopts s:a:td:v:he:b o
+while getopts a:bd:e:hlm:s:tv: o
 do
     case "$o" in
     b) compress_bz=true ;;
     v) vault_name=$OPTARG ;;
     a) archive_prefix=$OPTARG ;;
+    m) find_max_size=$OPTARG ;;
+    l) stop_early=true ;;
     d) temp_path=$OPTARG ;;
     t) use_temp_dir=true ;;
     e) blob_encrypt=$OPTARG ;;
@@ -104,10 +109,10 @@ fi
 [ -d "$split_dest_dir" ] || f_fatal "No directory: '$split_dest_dir'"
 cat <<EOS
 
-	Archive name: $archive_prefix
-	Archive files: $(basename $blob_dest)*
-	Destination: $archive_dir
-	Temp. dir: $temp_dir
+Archive name: $archive_prefix
+Archive files: $(basename $blob_dest)*
+Destination: $archive_dir
+Temp. dir: $temp_dir
 
 EOS
 
@@ -121,22 +126,41 @@ do
 	fi
 done
 
+if [ -n "$find_max_size" ]
+then
+    echo "* Build exclusion list"
+    tar_exclude_list=$(mktemp)
+    tar_exclude_list_zero=$(mktemp)
+    tar_exclude_list_du=$(mktemp)
+    echo ">>>>>>  List files > $find_max_size"
+    find -size +$find_max_size | tee $tar_exclude_list | tr '\n' '\0' >$tar_exclude_list_zero
+    du -sch --files0-from=$tar_exclude_list_zero | tee $tar_exclude_list_du
+    rm $tar_exclude_list_zero
+    tar_opt_exclude="--exclude-from $tar_exclude_list"
+    echo "<<<<<<  List files > $find_max_size (list in file $tar_exclude_list)"
+    [ "$stop_early" = "true" ] || cp -v $tar_exclude_list_du $archive_dir/$list_file_excluded
+fi
+
+[ "$stop_early" = "true" ] && exit
+
 echo "* TAR all files"
 f_split() { split --bytes=${blob_size} --suffix-length=2 - $1; }
 f_encrypt() { gpg --encrypt --recipient $blob_encrypt ; }
-[ "$compress_bz" = "true" ] && tar_opt=j
+[ "$compress_bz" = "true" ] && tar_opt_comp=j
+tar_exclude_st="--exclude=.stfolder"
 
 if [ -z "$blob_encrypt" ]
 then
-	time tar c$tar_opt "$@"  | f_split ${blob_dest}. || \
+	time tar c$tar_opt_comp $tar_opt_exclude $tar_exclude_st "$@"  | f_split ${blob_dest}. || \
 		f_fatal "Tar+Split failed (no encryption)"
 else
-	time tar c$tar_opt "$@"  | f_encrypt | f_split ${blob_dest}. || \
+	time tar c$tar_opt_comp $tar_opt_exclude $tar_exclude_st "$@"  | f_encrypt | f_split ${blob_dest}. || \
 		f_fatal "Tar+Split failed (with encryption)"
 fi
 
 echo "* Populate file '$list_file_in'"
 ls -1 ${blob_dest}* | sed 's_^.*/__' > $archive_dir/$list_file_in
+touch -d 'yesterday' $archive_dir/$list_file_in
 
 echo "* Compute sha256 checksums"
 for f in ${blob_dest}*
@@ -147,6 +171,7 @@ do
 	f_file=$(basename "$f")
 	( cd $f_dir ; sha256sum --binary "$f_file" > "$f_file.$sha256_suffix" )
 	chmod g+w "$f" "$f.$sha256_suffix"
+    touch -d 'yesterday' "$f.$sha256_suffix"
 done
 
 if [ "$archive_dir" != "$temp_dir" ]
