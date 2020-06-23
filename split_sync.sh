@@ -28,11 +28,12 @@ cat <<EOF
 
 Usage:
   $(basename $0) -h
-  $(basename $0) [-e recipient] [-b] -a archive_prefix -v vault_name [-m <size>] [-l] [-t [-d <temp_dir]] <files>
+  $(basename $0) [-e recipient] [-b] -a archive_prefix -v vault_name [-c] [-m <size>] [-l] [-t [-d <temp_dir]] <files>
 
   -h : this help.
   -a : Archive name prefix
   -v : Vault Name (and destination directory name)
+  -c : Check data integrity
   -m : Max file size (larger fiels will be ignored)
        Add suffix like for find command (eg. 100M)
   -l : list only -> stops after find excluded files
@@ -48,13 +49,15 @@ EOF
 
 compress_bz=false
 use_temp_dir=false
+check_data_integrity=false
 
-while getopts a:bd:e:hlm:s:tv: o
+while getopts a:bcd:e:hlm:s:tv: o
 do
     case "$o" in
     b) compress_bz=true ;;
     v) vault_name=$OPTARG ;;
     a) archive_prefix=$OPTARG ;;
+    c) check_data_integrity=true ;;
     m) find_max_size=$OPTARG ;;
     l) stop_early=true ;;
     d) temp_path=$OPTARG ;;
@@ -116,6 +119,29 @@ Temp. dir: $temp_dir
 
 EOS
 
+f_split() { split --bytes=${blob_size} --suffix-length=2 - $1; }
+f_encrypt() {
+    if [ -n "$blob_encrypt" ]
+    then
+        gpg --encrypt --recipient $blob_encrypt ;
+    else
+        cat -
+    fi
+}
+f_decrypt() {
+    GPG_TTY=$(tty)
+    export GPG_TTY
+    if [ -n "$blob_encrypt" ]
+    then
+        gpg --decrypt
+    else
+        cat -
+    fi
+}
+
+if false # SPLIT section
+then
+
 for d in "$archive_dir" "$temp_dir"
 do
 	if [ ! -d "$d" ]
@@ -144,19 +170,26 @@ fi
 [ "$stop_early" = "true" ] && exit
 
 echo "* TAR all files"
-f_split() { split --bytes=${blob_size} --suffix-length=2 - $1; }
-f_encrypt() { gpg --encrypt --recipient $blob_encrypt ; }
+
 [ "$compress_bz" = "true" ] && tar_opt_comp=j
 tar_exclude_st="--exclude=.stfolder"
 
-if [ -z "$blob_encrypt" ]
-then
-	time tar c$tar_opt_comp $tar_opt_exclude $tar_exclude_st "$@"  | f_split ${blob_dest}. || \
-		f_fatal "Tar+Split failed (no encryption)"
+time tar c$tar_opt_comp $tar_opt_exclude $tar_exclude_st "$@"  | f_encrypt | f_split ${blob_dest}. || \
+	f_fatal "Tar+Split failed (encryption: $blob_encrypt)"
 else
-	time tar c$tar_opt_comp $tar_opt_exclude $tar_exclude_st "$@"  | f_encrypt | f_split ${blob_dest}. || \
-		f_fatal "Tar+Split failed (with encryption)"
+    echo "* SPLIT deactivated"
+fi # Split section
+
+if [ "$check_data_integrity" = "true" ]
+then
+    tar_check_list=$(mktemp)
+    echo "* Verify data -> file '$tar_check_list'"
+    find $archive_dir -name "$(basename ${blob_dest}).*" -and -not -name "*$sha256_suffix" | sort | xargs cat | f_decrypt | tar t$tar_opt_comp >$tar_check_list
+    	f_fatal "Data integrity check failed (encryption: $blob_encrypt)"
 fi
+
+if false # SPLIT section
+then
 
 echo "* Populate file '$list_file_in'"
 ls -1 ${blob_dest}* | sed 's_^.*/__' > $archive_dir/$list_file_in
@@ -184,3 +217,6 @@ then
 	mv ${blob_dest}* "$archive_dir/"
 fi
 
+else
+    echo "* SPLIT deactivated"
+fi # Split section
