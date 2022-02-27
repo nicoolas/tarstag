@@ -44,7 +44,7 @@ while read archive_id
 do
 	echo "Delete archive: $archive_id"
 	set -x
-	aws glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
+	$aws_cmd glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
 	set +x
 done
 } | tee $out

@@ -36,4 +36,4 @@ Out: $out
 EOS
 
 set -x
-aws glacier describe-vault --vault-name $vault --account-id - | tee $out
+$aws_cmd glacier describe-vault --vault-name $vault --account-id - | tee $out

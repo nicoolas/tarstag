@@ -25,9 +25,33 @@ list_file_out=.full-list-out
 
 file_ext_glacier=".glacier"
 
+f_log() {
+	echo "$(date +%Y-%m-%d_%H:%M:%S): $*"
+}
+
+f_fatal() {
+	f_log "ERROR: $*"
+	exit 1
+}
+
 f_load_config_file() {
 	[ -s "$config_dir/$1" ] || return 1
 	. "$config_dir/$1"
+}
+
+f_print_seconds() {
+    local cap_sec=$1
+    if expr match "$cap_sec" '[0-9][0-9]*' >/dev/null
+    then
+        time_t=$cap_sec
+        time_s=$((time_t%60))
+        time_t=$(((cap_sec-time_s)/60))
+        time_m=$((time_t%60))
+        time_h=$(((time_t-time_m)/60))
+        echo "${time_h}h ${time_m}m ${time_s}s"
+    else
+        echo "n/a"
+    fi
 }
 
 f_send_email() {

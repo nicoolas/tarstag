@@ -49,7 +49,7 @@ out: $out
 
 EOS
 
-aws glacier initiate-job --account-id - \
+$aws_cmd glacier initiate-job --account-id - \
 	--vault-name $vault \
 	--job-parameters \
 	"{\"Type\": \"$job_type\" \"ArchiveId\": $archive_id}" \

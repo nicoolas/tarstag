@@ -51,7 +51,7 @@ EOS
 jq '.Completed' $in | grep -q "true" || f_fatal "Error: Process not completed"
 
 set -x
-aws glacier get-job-output --account-id - \
+$aws_cmd glacier get-job-output --account-id - \
 	--vault-name $vault \
 	--job-id "$job_id" \
 	$out

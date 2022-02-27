@@ -47,20 +47,12 @@ cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
 
 umask 002
 
-f_log() {
-	echo "$(date +%Y-%m-%d_%H:%M:%S): $*"
-}
-f_fatal() {
-	echo "ERROR: $1"
-	exit 1
-}
-
 f_log "* Verify SHA256 checksum"
 sha256sum -c "$sha256sum" || f_fatal "SHA256 Checksum failed"
 
 f_log "* Generate SHA256 Tree Hash"
-$cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
-[ -r "$treehash" ] || f_fatal "Cannot read file '$treehash'"
+nice -n 15 $cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
+[ -s "$treehash" ] || f_fatal "Cannot read or empty file '$treehash'"
 
 # Arg-1: Vault list file
 # Arg-2: Vault name
@@ -90,7 +82,9 @@ else
 fi
 
 f_log "* Upload archive '$blob'"
-timeout_s=600
+timeout_s=1800
+d_beg=$(date +"%s")
+set -x
 $dry_run timeout $timeout_s \
 	aws glacier upload-archive \
     --vault-name $vault \
@@ -99,6 +93,9 @@ $dry_run timeout $timeout_s \
     --body $blob \
     --checksum $(cat $treehash) >$output_log 2>&1
 aws_ret=$?
+set +x
+d_end=$(date +"%s")
+f_log "End - RC: $aws_ret - duration:  $(f_print_seconds $((d_end-d_beg)))"
 echo '<<< aws glacier upload-archive logs'
 [ -r "$output_log" ] && cat "$output_log"
 echo '>>>'

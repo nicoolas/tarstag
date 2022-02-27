@@ -36,3 +36,4 @@ file_job_desc="20-job-desc"
 file_job_output="30-job-output"
 file_actions="40-actions"
 
+aws_cmd=/usr/bin/aws

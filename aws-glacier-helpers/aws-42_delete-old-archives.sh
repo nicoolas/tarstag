@@ -45,7 +45,7 @@ jq -c '.ArchiveList | .[] | [if .CreationDate | fromdate < now-7776000 then [.Ar
 		while read archive_id creation_date
 		do
 			echo "Delete old archive: $creation_date $(echo $archive_id | cut -c 1-16)..."
-			aws glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
+			$aws_cmd glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
 		done
 	} | tee $out
 

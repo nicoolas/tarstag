@@ -44,4 +44,4 @@ Job: $job_id
 EOS
 
 set -x
-aws glacier describe-job --vault-name $vault --account-id - --job-id="$job_id" | tee $out
+$aws_cmd glacier describe-job --vault-name $vault --account-id - --job-id="$job_id" | tee $out
