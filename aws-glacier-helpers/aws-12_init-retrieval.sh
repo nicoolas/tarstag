@@ -54,3 +54,13 @@ $aws_cmd glacier initiate-job --account-id - \
 	--job-parameters \
 	"{\"Type\": \"$job_type\" \"ArchiveId\": $archive_id}" \
 	| tee $out
+
+exit
+###########
+# aws glacier initiate-job --account-id - --vault-name nicoolas.fr --job-parameters file://retr_nextcloud-data.json
+#    {
+#      "Type": "archive-retrieval",
+#      "ArchiveId": "PUctMb",
+#      "Description": "Retrieve: m.gpg",
+#      "SNSTopic": "arn:aws:sns:eu"
+#    }
