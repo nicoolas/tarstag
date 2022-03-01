@@ -38,6 +38,8 @@ EOS
 
 for json_in in "$@"
 do
+    # somehow, AWS sometimes outputs ArchieId with lowercase A
+    sed -i 's/"archiveId":/"ArchiveId":/' $json_in
     archive_id=$(jq ".ArchiveId" $json_in | tr -d '"')
     echo "Delete archive: $json_in -> $archive_id"
     if echo "$archive_id" | grep -q null
