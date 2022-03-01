@@ -24,24 +24,33 @@ f_check_util jq
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-in=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
-out=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
-
-f_check_file_read "$in"
-
-job_id=$(jq '.jobId' $in | tr -d '"')
-f_check_not_empty "$job_id" "Could not find JobId in file '$in'"
+shift
+cmd=delete-archive
+out=$(f_get_filepath "${vault}" "$file_actions" "delete-archives-from-json" "log")
 
 cat <<EOS
 
-== $(basename $0) ==
-
 Vault: $vault
-In: $in
 Out: $out
-Job: $job_id
 
 EOS
 
-#set -x
-$aws_cmd glacier describe-job --vault-name $vault --account-id - --job-id="$job_id" | tee $out >&2
+
+for json_in in "$@"
+do
+    # somehow, AWS sometimes outputs ArchieId with lowercase A
+    sed -i 's/"archiveId":/"ArchiveId":/' $json_in
+    archive_id=$(jq ".ArchiveId" $json_in | tr -d '"')
+    echo "Delete archive: $json_in -> $archive_id"
+    if echo "$archive_id" | grep -q null
+    then
+        echo "Failed to find archiveId, skipping"
+        continue
+    else
+        set -x
+        $aws_cmd glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
+        set +x
+        mv -v $json_in $json_in.deleted
+    fi
+done | tee $out
+

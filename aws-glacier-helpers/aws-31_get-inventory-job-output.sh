@@ -24,24 +24,31 @@ f_check_util jq
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-in=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
-out=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
+cmd=get-job-output
+in=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
 
-f_check_file_read "$in"
+f_check_file_read $in
+job_id=$(jq '.JobId' $in | tr -d '"')
+#vault=$(jq '.VaultARN' $in | tr -d '"' | sed 's:^.*vaults/::')
 
-job_id=$(jq '.jobId' $in | tr -d '"')
-f_check_not_empty "$job_id" "Could not find JobId in file '$in'"
+jq '.Action' $in | grep -q "InventoryRetrieval" || f_fatal "Wrong Action"
+
+out=$(f_get_filepath "${vault}" "$file_job_output" "inventory" "json")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
+Job: $job_id
+
 In: $in
 Out: $out
-Job: $job_id
 
 EOS
 
-#set -x
-$aws_cmd glacier describe-job --vault-name $vault --account-id - --job-id="$job_id" | tee $out >&2
+jq '.Completed' $in | grep -q "true" || f_fatal "Error: Process not completed"
+
+set -x
+$aws_cmd glacier $cmd --vault-name $vault --account-id - --job-id="$job_id" $out
+

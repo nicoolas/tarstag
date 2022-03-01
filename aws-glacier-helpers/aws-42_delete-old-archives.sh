@@ -19,22 +19,33 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-job_type="inventory-retrieval"
-cmd=initiate-job
+cmd=delete-archive
+in=$(f_get_filepath "${vault}" "$file_job_output" "inventory" "json")
+out=$(f_get_filepath "${vault}" "$file_actions" "delete-old-archives" "log")
 
-out=$(f_get_filepath "${vault}" "$file_job_inventory")
+f_check_file_read "$in"
 
 cat <<EOS
 
-== $(basename $0) ==
-
 Vault: $vault
-Type: $job_type
-out: $out
+In: $in
+Out: $out
 
 EOS
 
-aws glacier $cmd --vault-name $vault --account-id -  --job-parameters "{\"Type\": \"$job_type\"}" | tee $out
+# List all ArchiveID created more than 90 days ago
+jq -c '.ArchiveList | .[] | [if .CreationDate | fromdate < now-7776000 then [.ArchiveId,.CreationDate] else empty end] | .[]' $in | \
+	tr -d '[]"' | tr ',' ' ' | \
+	{
+		while read archive_id creation_date
+		do
+			echo "Delete old archive: $creation_date $(echo $archive_id | cut -c 1-16)..."
+			$aws_cmd glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
+		done
+	} | tee $out
+

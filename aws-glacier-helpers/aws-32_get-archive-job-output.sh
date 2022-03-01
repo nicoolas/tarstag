@@ -19,27 +19,40 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-cmd=get-job-output
-in=$(f_get_filepath "${vault}" "$file_job_description")
-out=$(f_get_filepath "${vault}" "$file_job_output")
+in=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
 
 f_check_file_read $in
 job_id=$(jq '.JobId' $in | tr -d '"')
 #vault=$(jq '.VaultARN' $in | tr -d '"' | sed 's:^.*vaults/::')
+
+jq '.Action' $in | tr -d '"' | grep -q "ArchiveRetrieval" || f_fatal "Wrong Action"
+archive_id=$(jq '.ArchiveId' $in)
+f_check_not_empty "$archive_id" "Error with ArchiveId"
+
+out=$(f_get_filepath "${vault}" "$file_job_output" "archive" "data")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
+Job: $job_id
+
 In: $in
 Out: $out
-Job: $job_id
 
 EOS
 
+jq '.Completed' $in | grep -q "true" || f_fatal "Error: Process not completed"
+
 set -x
-aws glacier $cmd --vault-name $vault --account-id - --job-id="$job_id" $out
+$aws_cmd glacier get-job-output --account-id - \
+	--vault-name $vault \
+	--job-id "$job_id" \
+	$out
+

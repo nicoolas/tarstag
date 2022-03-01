@@ -23,8 +23,9 @@ f_load_config_file "upload.conf"
 [ -n "$cmd_treehash" ] || f_fatal "bug: missing treehash computation command"
 [ -x "$cmd_treehash" ] || f_fatal "bug: treehash computation command not found '$cmd_treehash'"
 [ -n "$AWS_ACCOUNT_ID" ] || f_fatal "Config file: missing entry 'AWS_ACCOUNT_ID'"
+f_check_util jq
 
-#dry_run=echo 
+#dry_run=echo
 
 vault="$1"
 input_file="$2"
@@ -39,25 +40,33 @@ umask 002
 echo
 
 f_log() {
-	echo
-	echo "$(date +%Y-%m-%d_%H:%M:%S): $*"
+    echo
+    echo "$(date +%Y-%m-%d_%H:%M:%S): $*"
 }
 f_fatal() {
-	echo "ERROR: $1"
-	exit 1
+    echo "ERROR: $1"
+    exit 1
 }
 which jq >/dev/null || f_fatal "Missing tool 'jq'"
 
+archive_description="$3"
 [ -n "$vault" ] || f_fatal "Missing argument"
 [ -n "$input_file" ] || f_fatal "Missing argument"
 [ -r "$input_file" ] || f_fatal "Cannot read file '$input_file'"
-
+input_file_dir=$(dirname "$input_file")
 [ -x "$input_file_dir" ] || f_fatal "Dir '$input_file_dir' is not executable - $(ls -ld $input_file_dir)"
 [ -w "$input_file_dir" ] || f_fatal "Dir '$input_file_dir' is not writable - $(ls -dl $input_file_dir)"
-cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
+blob="$(basename $input_file)"
+sha256sum="$blob.sha256sum"
+treehash="$blob.sha256treehash"
+output_log="$blob$file_ext_glacier"
+output_vaults=".aws.vaults"
+[ -z "$archive_description" ] && archive_description="Backup: $blob"
 
+cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
 [ -r "$blob" ] || f_fatal "Cannot read file '$blob'"
 [ -r "$sha256sum" ] || f_fatal "Cannot read file '$sha256sum'"
+umask 002
 
 [ -s "$blob" ] || f_fatal "Empty file '$blob'"
 [ -s "$sha256sum" ] || f_fatal "Empty file '$sha256sum'"
@@ -70,36 +79,52 @@ cat $sha256sum
 sha256sum -c "$sha256sum" || f_fatal "SHA256 Checksum failed"
 
 f_log "* Generate SHA256 Tree Hash"
-$cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
-[ -r "$treehash" ] || f_fatal "Cannot read file '$treehash'"
+nice -n 15 $cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
+[ -s "$treehash" ] || f_fatal "Cannot read or empty file '$treehash'"
 
-f_list_vaults() {
-	f_log "* List available vaults ($output_vaults)"
-	aws glacier list-vaults --account-id $AWS_ACCOUNT_ID > $output_vaults || f_fatal "Failed to list current vaults"
-	[ -r "$output_vaults" ] || f_fatal "Cannot read file '$output_vaults'"
+# Arg-1: Vault list file
+# Arg-2: Vault name
+f_find_vault() {
+    [ -r "$1" ] || return 1
+    jq '."VaultList"|.[]|."VaultName"' "$1" | grep -q "\"$2\""
 }
 
-f_list_vaults
+f_check_vault() {
+    f_log "* List vaults ($output_vaults)"
+    f_find_vault "$output_vaults" "$vault" && return 0
+
+    f_log "* Refresh vaults list ($output_vaults)"
+    aws glacier list-vaults --account-id $AWS_ACCOUNT_ID > $output_vaults || f_fatal "Failed to list current vaults"
+    [ -r "$output_vaults" ] || f_fatal "Failed to list vaults (cannot read file '$output_vaults')"
+
+    f_find_vault "$output_vaults" "$vault"
+}
+
 if jq '."VaultList"|.[]|."VaultName"' $output_vaults | grep -q "\"$vault\""
 then
-	f_log "-> Vault '$vault' already exists"
+    f_log "  Vault '$vault' already exists"
 else
-	f_log "-> Vault '$vault' does not exist: creating it"
-	aws glacier create-vault --account-id $AWS_ACCOUNT_ID --vault-name "$vault" || f_fatal "Failed to create vault '$vault'"
-	f_list_vaults # Refresh vault list
+    f_log "  Vault '$vault' does not exist: creating it"
+    aws glacier create-vault --account-id $AWS_ACCOUNT_ID --vault-name "$vault" || f_fatal "Failed to create vault '$vault'"
+    f_check_vault || f_fatal "Error creating Vault '$vault'"
 fi
 
-f_log "* Upload archive '$blob'"
-timeout_s=600
+f_log "* Upload archive '$blob' - descr: $archive_description"
+timeout_s=1800
+d_beg=$(date +"%s")
+set -x
 $dry_run timeout $timeout_s \
-	aws glacier upload-archive \
+    aws glacier upload-archive \
     --vault-name $vault \
     --account-id $AWS_ACCOUNT_ID \
-    --archive-description "Backup: $blob" \
+    --archive-description "$archive_description" \
     --body $blob \
     --checksum $(cat $treehash) >$output_log 2>&1
 aws_ret=$?
-echo '<<<'
+set +x
+d_end=$(date +"%s")
+f_log "End - RC: $aws_ret - duration:  $(f_print_seconds $((d_end-d_beg)))"
+echo '<<< aws glacier upload-archive logs'
 [ -r "$output_log" ] && cat "$output_log"
 echo '>>>'
 
@@ -109,5 +134,3 @@ f_log "Delete input files"
 rm -fv "$blob" "$sha256sum" "$treehash"
 
 f_log "* Done"
-
-echo

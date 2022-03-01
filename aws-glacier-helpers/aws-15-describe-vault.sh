@@ -19,31 +19,21 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
+f_check_util jq
+
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-cmd=delete-archive
-in=$(f_get_filepath "${vault}" "$file_job_output")
-out=$(f_get_filepath "${vault}" "_delete-archive.log")
-
-f_check_file_read "$in"
+out=$(f_get_filepath "${vault}" "$file_info" "describe-vault" "json")
 
 cat <<EOS
 
+== $(basename $0) ==
+
 Vault: $vault
-In: $in
 Out: $out
 
 EOS
 
-
-jq ".ArchiveList|.[]|.ArchiveId" $in | tr -d '"' | {
-while read archive_id
-do
-	echo "Delete archive: $archive_id"
-	set -x
-	aws glacier $cmd --vault-name $vault --account-id - --archive-id="$archive_id" || f_fatal
-	set +x
-done
-} | tee $out
-
+set -x
+$aws_cmd glacier describe-vault --vault-name $vault --account-id - | tee $out

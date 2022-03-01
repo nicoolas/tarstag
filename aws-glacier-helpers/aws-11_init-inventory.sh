@@ -19,29 +19,24 @@
 
 . $(dirname $(readlink -f $0))/aws-00_common.sh
 
-f_check_util jq
-
 f_check_not_empty "$1" "Missing arg. (Vault Name)"
 
 vault="$1"
-in=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
-out=$(f_get_filepath "${vault}" "$file_job_desc" "describe-job" "json")
+job_type="inventory-retrieval"
 
-f_check_file_read "$in"
-
-job_id=$(jq '.jobId' $in | tr -d '"')
-f_check_not_empty "$job_id" "Could not find JobId in file '$in'"
+out=$(f_get_filepath "${vault}" "$file_job_init" "retrieval" "json")
 
 cat <<EOS
 
 == $(basename $0) ==
 
 Vault: $vault
-In: $in
-Out: $out
-Job: $job_id
+Type: $job_type
+out: $out
 
 EOS
 
-#set -x
-$aws_cmd glacier describe-job --vault-name $vault --account-id - --job-id="$job_id" | tee $out >&2
+$aws_cmd glacier initiate-job --account-id - \
+	--vault-name $vault \
+	--job-parameters "{\"Type\": \"$job_type\"}" \
+	| tee $out

@@ -25,4 +25,4 @@ vault="$1"
 cmd=delete-vault
 
 # Vault needs to be empty before deletion
-aws glacier $cmd --vault-name $vault --account-id - || f_fatal
+$aws_cmd glacier $cmd --vault-name $vault --account-id - || f_fatal
