@@ -29,6 +29,7 @@ f_check_util jq
 
 vault="$1"
 input_file="$2"
+archive_description="$3"
 [ -n "$vault" ] || f_fatal "Missing argument"
 [ -n "$input_file" ] || f_fatal "Missing argument"
 [ -r "$input_file" ] || f_fatal "Cannot read file '$input_file'"
@@ -40,11 +41,11 @@ sha256sum="$blob.sha256sum"
 treehash="$blob.sha256treehash"
 output_log="$blob$file_ext_glacier"
 output_vaults=".aws.vaults"
+[ -z "$archive_description" ] && archive_description="Backup: $blob"
 
 cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
 [ -r "$blob" ] || f_fatal "Cannot read file '$blob'"
 [ -r "$sha256sum" ] || f_fatal "Cannot read file '$sha256sum'"
-
 umask 002
 
 f_log "* Verify SHA256 checksum"
@@ -81,7 +82,7 @@ else
 	f_check_vault || f_fatal "Error creating Vault '$vault'"
 fi
 
-f_log "* Upload archive '$blob'"
+f_log "* Upload archive '$blob' - descr: $archive_description"
 timeout_s=1800
 d_beg=$(date +"%s")
 set -x
@@ -89,7 +90,7 @@ $dry_run timeout $timeout_s \
 	aws glacier upload-archive \
     --vault-name $vault \
     --account-id $AWS_ACCOUNT_ID \
-    --archive-description "Backup: $blob" \
+    --archive-description "$archive_description" \
     --body $blob \
     --checksum $(cat $treehash) >$output_log 2>&1
 aws_ret=$?
