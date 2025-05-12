@@ -19,7 +19,6 @@
 . $(dirname $(readlink -f $0))/common.sh
 f_load_config_file "upload.conf"
 
-
 [ -n "$cmd_treehash" ] || f_fatal "bug: missing treehash computation command"
 [ -x "$cmd_treehash" ] || f_fatal "bug: treehash computation command not found '$cmd_treehash'"
 [ -n "$AWS_ACCOUNT_ID" ] || f_fatal "Config file: missing entry 'AWS_ACCOUNT_ID'"
@@ -29,18 +28,11 @@ f_check_util jq
 
 vault="$1"
 input_file="$2"
-input_file_dir=$(dirname "$input_file")
-blob="$(basename $input_file)"
-treehash="$blob.sha256treehash"
-sha256sum="$blob.sha256sum"
-output_log="$blob.glacier"
-output_vaults=".vaults-list"
 
 umask 002
 echo
 
 f_log() {
-    echo
     echo "$(date +%Y-%m-%d_%H:%M:%S): $*"
 }
 f_fatal() {
@@ -60,7 +52,8 @@ blob="$(basename $input_file)"
 sha256sum="$blob.sha256sum"
 treehash="$blob.sha256treehash"
 output_log="$blob$file_ext_glacier"
-output_vaults=".aws.vaults"
+output_vaults="$(realpath ~/.aws.vaults)"
+echo "output_vault:=$output_vaults"
 [ -z "$archive_description" ] && archive_description="Backup: $blob"
 
 cd "$input_file_dir" || f_fatal "Could not chdir to $input_file_dir"
@@ -79,7 +72,7 @@ cat $sha256sum
 sha256sum -c "$sha256sum" || f_fatal "SHA256 Checksum failed"
 
 f_log "* Generate SHA256 Tree Hash"
-nice -n 15 $cmd_treehash $(readlink -f $blob) || f_fatal "Tree Hash failed (for file '$blob')"
+nice -n 15 $cmd_treehash $(readlink -f $blob) >$treehash || f_fatal "Tree Hash failed (for file '$blob')"
 [ -s "$treehash" ] || f_fatal "Cannot read or empty file '$treehash'"
 
 # Arg-1: Vault list file
@@ -100,7 +93,7 @@ f_check_vault() {
     f_find_vault "$output_vaults" "$vault"
 }
 
-if jq '."VaultList"|.[]|."VaultName"' $output_vaults | grep -q "\"$vault\""
+if f_check_vault $output_vaults
 then
     f_log "  Vault '$vault' already exists"
 else
